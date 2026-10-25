@@ -1,0 +1,7 @@
+{
+  "name": "La mia scheda",
+  "description": "App moderna e responsive per la gestione e il monitoraggio degli allenamenti di calisthenics, registro sessioni e andamento del peso.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

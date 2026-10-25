@@ -1,0 +1,200 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Profilo utente e preferenze di allenamento",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "UID utente Firebase",
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "description": "Email dell'utente",
+          "maxLength": 256
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Nome visualizzato",
+          "maxLength": 128
+        },
+        "theme": {
+          "type": "string",
+          "enum": ["dark", "light", "system"],
+          "description": "Tema preferito"
+        },
+        "soundEnabled": {
+          "type": "boolean",
+          "description": "Segnali acustici timer recupero"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Data ultimo aggiornamento ISO"
+        }
+      },
+      "required": ["userId", "email"]
+    },
+    "WorkoutDay": {
+      "title": "WorkoutDay",
+      "description": "Giornata di allenamento della scheda calisthenics con sezioni ABS e Workout",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID univoco della giornata",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "UID utente proprietario",
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "description": "Nome della giornata (es. Lunedì - Spinta o Giorno A)",
+          "maxLength": 120
+        },
+        "order": {
+          "type": "number",
+          "description": "Ordine di visualizzazione della giornata"
+        },
+        "absItems": {
+          "type": "array",
+          "description": "Esercizi e circuiti della sezione ABS"
+        },
+        "workoutItems": {
+          "type": "array",
+          "description": "Esercizi e circuiti della sezione Workout principale"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Data di creazione ISO"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Data ultimo aggiornamento ISO"
+        }
+      },
+      "required": ["id", "userId", "name", "order", "absItems", "workoutItems"]
+    },
+    "WorkoutSession": {
+      "title": "WorkoutSession",
+      "description": "Registro di una sessione di allenamento completata o in corso",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID univoco della sessione",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "UID utente proprietario",
+          "maxLength": 128
+        },
+        "dayId": {
+          "type": "string",
+          "description": "ID della giornata associata",
+          "maxLength": 128
+        },
+        "dayName": {
+          "type": "string",
+          "description": "Nome della giornata",
+          "maxLength": 120
+        },
+        "date": {
+          "type": "string",
+          "description": "Data sessione YYYY-MM-DD",
+          "maxLength": 20
+        },
+        "startTime": {
+          "type": "string",
+          "description": "Orario o ISO inizio"
+        },
+        "endTime": {
+          "type": "string",
+          "description": "Orario o ISO fine"
+        },
+        "durationSeconds": {
+          "type": "number",
+          "description": "Durata totale in secondi"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Note complessive sulla sessione",
+          "maxLength": 2000
+        },
+        "completedItems": {
+          "type": "array",
+          "description": "Dettaglio serie ed esercizi registrati"
+        },
+        "ptSummary": {
+          "type": "string",
+          "description": "Riepilogo formattato per il Personal Trainer",
+          "maxLength": 10000
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Data salvataggio ISO"
+        }
+      },
+      "required": ["id", "userId", "dayName", "date", "durationSeconds", "completedItems"]
+    },
+    "WeightEntry": {
+      "title": "WeightEntry",
+      "description": "Registrazione del peso corporeo",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID univoco misurazione",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "UID utente proprietario",
+          "maxLength": 128
+        },
+        "date": {
+          "type": "string",
+          "description": "Data misurazione YYYY-MM-DD",
+          "maxLength": 20
+        },
+        "weightKg": {
+          "type": "number",
+          "description": "Peso in kg con un decimale"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Note facoltative (es. a digiuno, post-cheat meal)",
+          "maxLength": 500
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Data salvataggio ISO"
+        }
+      },
+      "required": ["id", "userId", "date", "weightKg"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Dati profilo e impostazioni dell'utente"
+    },
+    "/users/{userId}/days/{dayId}": {
+      "schema": "WorkoutDay",
+      "description": "Giornate della scheda calisthenics dell'utente"
+    },
+    "/users/{userId}/sessions/{sessionId}": {
+      "schema": "WorkoutSession",
+      "description": "Storico sessioni e registri allenamento dell'utente"
+    },
+    "/users/{userId}/weight_entries/{entryId}": {
+      "schema": "WeightEntry",
+      "description": "Storico pesate dell'utente"
+    }
+  }
+}
