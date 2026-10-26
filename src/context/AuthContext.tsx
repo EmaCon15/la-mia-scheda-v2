@@ -1,5 +1,12 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
+import {
+  User,
+  onAuthStateChanged,
+  signInWithPopup,
+  signOut,
+  setPersistence,
+  browserLocalPersistence,
+} from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
 
 interface AuthContextType {
@@ -19,10 +26,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    // Explicitly enforce local persistence across browser tab close/reopen
+    setPersistence(auth, browserLocalPersistence).catch((err) => {
+      console.warn('Firebase persistence setting notice:', err);
+    });
+
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          // Guarantee a valid, refreshed token is ready before informing consumers
+          await user.getIdToken();
+        } catch (tokenErr) {
+          console.warn('Token validation on startup:', tokenErr);
+        }
+      }
       setCurrentUser(user);
       setLoading(false);
     });
+
     return () => unsubscribe();
   }, []);
 

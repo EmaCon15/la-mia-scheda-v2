@@ -5,7 +5,12 @@ import {
   LoggedExercise,
   LoggedSet,
 } from '../../types';
-import { generatePTSummary } from '../../utils/workoutUtils';
+import {
+  generatePTSummary,
+  evaluateSetTarget,
+  evaluateExerciseTarget,
+  evaluateSessionTargets,
+} from '../../utils/workoutUtils';
 import { ConfirmModal } from '../ui/ConfirmModal';
 import {
   ClipboardCheck,
@@ -24,6 +29,9 @@ import {
   Dumbbell,
   CheckCircle2,
   PenLine,
+  Target,
+  AlertTriangle,
+  Trophy,
 } from 'lucide-react';
 
 interface LogWorkoutViewProps {
@@ -45,7 +53,9 @@ export const LogWorkoutView: React.FC<LogWorkoutViewProps> = ({
   onClearPreselectedDay,
   loading,
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'nuovo' | 'storico'>('nuovo');
+  const [activeSubTab, setActiveSubTab] = useState<'storico' | 'nuovo'>(
+    preselectedDayId ? 'nuovo' : 'storico'
+  );
   const [sessionToDelete, setSessionToDelete] = useState<WorkoutSession | null>(null);
 
   // Form State
@@ -294,20 +304,8 @@ export const LogWorkoutView: React.FC<LogWorkoutViewProps> = ({
         </p>
       </div>
 
-      {/* Sub tabs: Inserisci Risultati vs Storico Sessioni */}
+      {/* Sub tabs: Storico Sessioni vs Inserisci Risultati */}
       <div className="grid grid-cols-2 p-1 bg-zinc-200/70 dark:bg-zinc-800 rounded-xl text-xs font-bold">
-        <button
-          onClick={() => setActiveSubTab('nuovo')}
-          className={`py-2 rounded-lg flex items-center justify-center space-x-1.5 transition cursor-pointer ${
-            activeSubTab === 'nuovo'
-              ? 'bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-xs'
-              : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
-          }`}
-        >
-          <PenLine className="w-3.5 h-3.5" />
-          <span>Inserisci Risultati</span>
-        </button>
-
         <button
           onClick={() => setActiveSubTab('storico')}
           className={`py-2 rounded-lg flex items-center justify-center space-x-1.5 transition cursor-pointer ${
@@ -318,6 +316,18 @@ export const LogWorkoutView: React.FC<LogWorkoutViewProps> = ({
         >
           <History className="w-3.5 h-3.5" />
           <span>Storico ({sessions.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('nuovo')}
+          className={`py-2 rounded-lg flex items-center justify-center space-x-1.5 transition cursor-pointer ${
+            activeSubTab === 'nuovo'
+              ? 'bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-xs'
+              : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
+          }`}
+        >
+          <PenLine className="w-3.5 h-3.5" />
+          <span>Inserisci Risultati</span>
         </button>
       </div>
 
@@ -510,6 +520,16 @@ export const LogWorkoutView: React.FC<LogWorkoutViewProps> = ({
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">
                   Inserisci i risultati del tuo ultimo allenamento dalla scheda per visualizzare lo storico e condividere il report col tuo trainer.
                 </p>
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveSubTab('nuovo')}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold inline-flex items-center space-x-1.5 shadow-xs cursor-pointer transition"
+                  >
+                    <PenLine className="w-3.5 h-3.5" />
+                    <span>Inserisci Risultati</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -520,6 +540,7 @@ export const LogWorkoutView: React.FC<LogWorkoutViewProps> = ({
               (acc, item) => acc + item.sets.filter((s) => s.completed).length,
               0
             );
+            const sessionTargets = evaluateSessionTargets(session);
 
             return (
               <div
@@ -534,13 +555,26 @@ export const LogWorkoutView: React.FC<LogWorkoutViewProps> = ({
                   className="p-4 cursor-pointer hover:bg-zinc-50/50 dark:hover:bg-zinc-800/40 transition flex items-center justify-between"
                 >
                   <div className="space-y-1">
-                    <div className="flex items-center space-x-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
                         {session.dayName}
                       </span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold">
+                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-semibold">
                         {completedSetsCount} serie
                       </span>
+                      {sessionTargets.totalExercises > 0 && (
+                        sessionTargets.allTargetsReached ? (
+                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 font-bold flex items-center space-x-1">
+                            <Trophy className="w-3 h-3 text-emerald-500" />
+                            <span>Target 100% ({sessionTargets.fullyReachedExercises}/{sessionTargets.totalExercises})</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/25 font-bold flex items-center space-x-1">
+                            <Target className="w-3 h-3 text-amber-500" />
+                            <span>{sessionTargets.fullyReachedExercises}/{sessionTargets.totalExercises} a target</span>
+                          </span>
+                        )
+                      )}
                     </div>
 
                     <div className="flex items-center space-x-3 text-xs text-zinc-500 dark:text-zinc-400">
@@ -594,42 +628,95 @@ export const LogWorkoutView: React.FC<LogWorkoutViewProps> = ({
                       </div>
                     )}
 
-                    {/* Performed items */}
-                    <div className="space-y-2">
-                      {session.completedItems.map((item, iIdx) => (
-                        <div
-                          key={iIdx}
-                          className="p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 text-xs space-y-1"
-                        >
-                          <div className="flex items-center justify-between font-bold text-zinc-900 dark:text-zinc-100">
-                            <span>
-                              {item.circuitName ? `[${item.circuitName}] ` : ''}
-                              {item.name}
-                            </span>
-                            <span className="text-[10px] text-zinc-400 uppercase">
-                              {item.section}
-                            </span>
-                          </div>
+                    {/* Performed items with target indicators */}
+                    <div className="space-y-2.5">
+                      {session.completedItems.map((item, iIdx) => {
+                        const targetEval = evaluateExerciseTarget(item);
 
-                          <div className="flex flex-wrap gap-2 text-[11px] text-zinc-600 dark:text-zinc-300">
-                            {item.sets.map((s, sIdx) => (
-                              <span
-                                key={sIdx}
-                                className="px-2 py-0.5 rounded-md bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600"
-                              >
-                                {s.roundNumber ? `Giro ${s.roundNumber}` : `S${s.setNumber}`}: {s.completedRepsOrSec}
-                                {s.weightKg ? ` (+${s.weightKg}kg)` : ''}
-                              </span>
-                            ))}
-                          </div>
+                        return (
+                          <div
+                            key={iIdx}
+                            className={`p-3 rounded-xl border text-xs space-y-2 transition-all ${
+                              targetEval.isFullyReached
+                                ? 'bg-emerald-500/[0.04] dark:bg-emerald-500/[0.07] border-emerald-500/30 dark:border-emerald-500/20'
+                                : 'bg-amber-500/[0.04] dark:bg-amber-500/[0.07] border-amber-500/30 dark:border-amber-500/20'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div>
+                                <span className="font-extrabold text-sm text-zinc-900 dark:text-zinc-100 block">
+                                  {item.circuitName ? `[${item.circuitName}] ` : ''}
+                                  {item.name}
+                                </span>
+                                <span className="text-[10px] text-zinc-400 uppercase font-semibold">
+                                  Sezione {item.section}
+                                </span>
+                              </div>
 
-                          {item.notes && (
-                            <p className="text-[11px] text-zinc-500 italic pt-0.5">
-                              Nota: {item.notes}
-                            </p>
-                          )}
-                        </div>
-                      ))}
+                              {targetEval.isFullyReached ? (
+                                <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 font-bold text-[11px] flex items-center space-x-1 shrink-0 shadow-xs">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                  <span>Target Raggiunto</span>
+                                </span>
+                              ) : (
+                                <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-bold text-[11px] flex items-center space-x-1 shrink-0 shadow-xs">
+                                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                                  <span>Sotto Target ({targetEval.reachedSetsCount}/{targetEval.totalSetsCount})</span>
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Set pills with clear target vs done indicator */}
+                            <div className="flex flex-wrap gap-2 text-[11px]">
+                              {item.sets.map((s, sIdx) => {
+                                const setEval = evaluateSetTarget(s);
+                                return (
+                                  <span
+                                    key={sIdx}
+                                    className={`px-2.5 py-1 rounded-lg border font-medium flex items-center space-x-1.5 transition shadow-xs ${
+                                      setEval.isReached
+                                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 border-emerald-300 dark:border-emerald-800'
+                                        : 'bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 border-rose-300 dark:border-rose-800'
+                                    }`}
+                                  >
+                                    <span className="font-bold opacity-80">
+                                      {s.roundNumber ? `Giro ${s.roundNumber}` : `S${s.setNumber}`}:
+                                    </span>
+                                    <span className="font-extrabold">
+                                      {s.completedRepsOrSec}{setEval.unit === 'sec' ? 's' : ''}
+                                    </span>
+                                    {setEval.targetNum > 0 && (
+                                      <span className="text-[10px] opacity-75 font-normal">
+                                        / {setEval.targetNum}{setEval.unit === 'sec' ? 's' : ''}
+                                      </span>
+                                    )}
+                                    {setEval.isReached ? (
+                                      <span className="text-emerald-600 dark:text-emerald-400 font-bold text-xs">
+                                        ✓{setEval.diff > 0 ? ` (+${setEval.diff})` : ''}
+                                      </span>
+                                    ) : (
+                                      <span className="text-rose-600 dark:text-rose-400 font-bold text-xs">
+                                        ({setEval.diff}) ✕
+                                      </span>
+                                    )}
+                                    {s.weightKg ? (
+                                      <span className="text-[10px] bg-zinc-200/80 dark:bg-zinc-700 px-1 rounded-md text-zinc-700 dark:text-zinc-200 ml-0.5">
+                                        +{s.weightKg}kg
+                                      </span>
+                                    ) : null}
+                                  </span>
+                                );
+                              })}
+                            </div>
+
+                            {item.notes && (
+                              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 italic pt-1 border-t border-zinc-200/50 dark:border-zinc-700/50">
+                                Nota: {item.notes}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
 
                     {/* General session notes */}

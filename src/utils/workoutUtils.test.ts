@@ -7,8 +7,11 @@ import {
   generatePTSummary,
   reorderItems,
   validateImportData,
+  evaluateSetTarget,
+  evaluateExerciseTarget,
+  evaluateSessionTargets,
 } from './workoutUtils';
-import { WeightEntry, WorkoutSession } from '../types';
+import { WeightEntry, WorkoutSession, LoggedExercise, LoggedSet } from '../types';
 
 test('formatTime correctly formats seconds', () => {
   assert.equal(formatTime(0), '00:00');
@@ -116,3 +119,77 @@ test('validateImportData validates correct and corrupt payloads', () => {
   const missingRes = validateImportData(missingFieldsJson);
   assert.equal(missingRes.valid, false);
 });
+
+test('evaluateSetTarget accurately detects reached vs below target', () => {
+  const setExact: LoggedSet = {
+    setNumber: 1,
+    target: '8 rip',
+    completedRepsOrSec: 8,
+    completed: true,
+  };
+  const evalExact = evaluateSetTarget(setExact);
+  assert.equal(evalExact.isReached, true);
+  assert.equal(evalExact.targetNum, 8);
+  assert.equal(evalExact.diff, 0);
+
+  const setSurpassed: LoggedSet = {
+    setNumber: 2,
+    target: '8 rip',
+    completedRepsOrSec: 10,
+    completed: true,
+  };
+  const evalSurpassed = evaluateSetTarget(setSurpassed);
+  assert.equal(evalSurpassed.isReached, true);
+  assert.equal(evalSurpassed.diff, 2);
+
+  const setMissed: LoggedSet = {
+    setNumber: 3,
+    target: '8 rip',
+    completedRepsOrSec: 6,
+    completed: true,
+  };
+  const evalMissed = evaluateSetTarget(setMissed);
+  assert.equal(evalMissed.isReached, false);
+  assert.equal(evalMissed.diff, -2);
+
+  const setDuration: LoggedSet = {
+    setNumber: 1,
+    target: '30 s',
+    completedRepsOrSec: 30,
+    completed: true,
+  };
+  const evalDuration = evaluateSetTarget(setDuration);
+  assert.equal(evalDuration.isReached, true);
+  assert.equal(evalDuration.unit, 'sec');
+});
+
+test('evaluateExerciseTarget checks all sets and flags fully reached', () => {
+  const fullExercise: LoggedExercise = {
+    itemId: 'ex-1',
+    name: 'Dip',
+    section: 'workout',
+    sets: [
+      { setNumber: 1, target: '8 rip', completedRepsOrSec: 8, completed: true },
+      { setNumber: 2, target: '8 rip', completedRepsOrSec: 8, completed: true },
+    ],
+  };
+  const resFull = evaluateExerciseTarget(fullExercise);
+  assert.equal(resFull.isFullyReached, true);
+  assert.equal(resFull.reachedSetsCount, 2);
+  assert.equal(resFull.totalSetsCount, 2);
+
+  const partialExercise: LoggedExercise = {
+    itemId: 'ex-2',
+    name: 'Pull-up',
+    section: 'workout',
+    sets: [
+      { setNumber: 1, target: '8 rip', completedRepsOrSec: 8, completed: true },
+      { setNumber: 2, target: '8 rip', completedRepsOrSec: 6, completed: true },
+    ],
+  };
+  const resPartial = evaluateExerciseTarget(partialExercise);
+  assert.equal(resPartial.isFullyReached, false);
+  assert.equal(resPartial.reachedSetsCount, 1);
+  assert.equal(resPartial.totalSetsCount, 2);
+});
+

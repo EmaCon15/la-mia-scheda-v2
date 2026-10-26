@@ -4,6 +4,8 @@ import {
   WeightEntryWithDelta,
   ExportPayload,
   SectionItem,
+  LoggedExercise,
+  LoggedSet,
 } from '../types';
 
 /**
@@ -316,3 +318,110 @@ export function getDefaultCalisthenicsTemplate(userId: string) {
     },
   ];
 }
+
+/**
+ * Evaluates whether an individual logged set met or exceeded its target
+ */
+export interface SetTargetEvaluation {
+  targetNum: number;
+  completedNum: number;
+  diff: number;
+  isReached: boolean;
+  unit: 'rip' | 'sec';
+}
+
+export function evaluateSetTarget(set: LoggedSet): SetTargetEvaluation {
+  // Extract the numeric target from strings such as "8 rip", "30 s", "12", "3x8"
+  const match = set.target ? set.target.match(/(\d+)/) : null;
+  const targetNum = match ? parseInt(match[1], 10) : 0;
+  const completedNum = Number(set.completedRepsOrSec) || 0;
+  const diff = completedNum - targetNum;
+  const isSeconds = Boolean(
+    set.target && (set.target.includes('s') || set.target.includes('sec'))
+  );
+  const unit: 'rip' | 'sec' = isSeconds ? 'sec' : 'rip';
+  const isReached = targetNum > 0 ? completedNum >= targetNum : true;
+
+  return {
+    targetNum,
+    completedNum,
+    diff,
+    isReached,
+    unit,
+  };
+}
+
+/**
+ * Evaluates whether an entire exercise met its targets across all completed sets
+ */
+export interface ExerciseTargetEvaluation {
+  isFullyReached: boolean;
+  reachedSetsCount: number;
+  totalSetsCount: number;
+  hasTargetData: boolean;
+}
+
+export function evaluateExerciseTarget(
+  exercise: LoggedExercise
+): ExerciseTargetEvaluation {
+  const activeSets = exercise.sets.filter((s) => s.completed);
+  if (activeSets.length === 0) {
+    return {
+      isFullyReached: false,
+      reachedSetsCount: 0,
+      totalSetsCount: 0,
+      hasTargetData: false,
+    };
+  }
+
+  let reachedCount = 0;
+  let hasTargetData = false;
+
+  for (const s of activeSets) {
+    const evalResult = evaluateSetTarget(s);
+    if (evalResult.targetNum > 0) {
+      hasTargetData = true;
+      if (evalResult.isReached) {
+        reachedCount++;
+      }
+    } else {
+      reachedCount++;
+    }
+  }
+
+  return {
+    isFullyReached: reachedCount === activeSets.length,
+    reachedSetsCount: reachedCount,
+    totalSetsCount: activeSets.length,
+    hasTargetData,
+  };
+}
+
+/**
+ * Evaluates all exercises in a workout session
+ */
+export function evaluateSessionTargets(session: WorkoutSession): {
+  fullyReachedExercises: number;
+  totalExercises: number;
+  allTargetsReached: boolean;
+} {
+  const exercises = session.completedItems || [];
+  if (exercises.length === 0) {
+    return { fullyReachedExercises: 0, totalExercises: 0, allTargetsReached: false };
+  }
+
+  let fullyReachedCount = 0;
+  for (const ex of exercises) {
+    const res = evaluateExerciseTarget(ex);
+    if (res.isFullyReached) {
+      fullyReachedCount++;
+    }
+  }
+
+  return {
+    fullyReachedExercises: fullyReachedCount,
+    totalExercises: exercises.length,
+    allTargetsReached: fullyReachedCount === exercises.length,
+  };
+}
+

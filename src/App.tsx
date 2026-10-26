@@ -16,6 +16,9 @@ import {
   subscribeWorkoutDays,
   subscribeWorkoutSessions,
   subscribeWeightEntries,
+  fetchWorkoutDaysOnce,
+  fetchWorkoutSessionsOnce,
+  fetchWeightEntriesOnce,
   saveWorkoutDay,
   deleteWorkoutDay,
   saveWorkoutSession,
@@ -42,21 +45,91 @@ function MainAppContent() {
   const [weightEntries, setWeightEntries] = useState<WeightEntry[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
 
-  // Subscribe to Firestore when user is authenticated, or load from localStorage
+  // Subscribe to Firestore when user is authenticated, or load from localStorage with instant cached startup
   useEffect(() => {
     if (authLoading) return;
 
     if (currentUser) {
-      setDataLoading(true);
+      // 1. Instant recovery from user-specific cache (eliminates empty screen on reload)
+      const userDaysKey = `lms_user_${currentUser.uid}_days`;
+      const userSessionsKey = `lms_user_${currentUser.uid}_sessions`;
+      const userWeightKey = `lms_user_${currentUser.uid}_weights`;
 
+      try {
+        const cachedDays = localStorage.getItem(userDaysKey);
+        const cachedSessions = localStorage.getItem(userSessionsKey);
+        const cachedWeights = localStorage.getItem(userWeightKey);
+
+        if (cachedDays) {
+          const parsed = JSON.parse(cachedDays);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setDays(parsed);
+            setDataLoading(false);
+          }
+        }
+        if (cachedSessions) {
+          const parsed = JSON.parse(cachedSessions);
+          if (Array.isArray(parsed)) setSessions(parsed);
+        }
+        if (cachedWeights) {
+          const parsed = JSON.parse(cachedWeights);
+          if (Array.isArray(parsed)) setWeightEntries(parsed);
+        }
+      } catch (e) {
+        console.warn('Cache recovery error:', e);
+      }
+
+      // 2. Direct fetch as immediate fallback
+      fetchWorkoutDaysOnce(currentUser.uid).then(async (fetched) => {
+        if (fetched.length > 0) {
+          setDays(fetched);
+          localStorage.setItem(userDaysKey, JSON.stringify(fetched));
+          setDataLoading(false);
+        } else {
+          // If Cloud has 0 days, check if user had local guest days to auto-sync
+          try {
+            const guestDays = localStorage.getItem(LOCAL_STORAGE_DAYS_KEY);
+            if (guestDays) {
+              const parsedGuest: WorkoutDay[] = JSON.parse(guestDays);
+              if (parsedGuest.length > 0) {
+                for (const gDay of parsedGuest) {
+                  await saveWorkoutDay(currentUser.uid, gDay);
+                }
+                setDays(parsedGuest);
+                localStorage.setItem(userDaysKey, guestDays);
+              }
+            }
+          } catch (syncErr) {
+            console.warn('Guest data migration notice:', syncErr);
+          }
+          setDataLoading(false);
+        }
+      });
+
+      fetchWorkoutSessionsOnce(currentUser.uid).then((fetched) => {
+        if (fetched.length > 0) {
+          setSessions(fetched);
+          localStorage.setItem(userSessionsKey, JSON.stringify(fetched));
+        }
+      });
+
+      fetchWeightEntriesOnce(currentUser.uid).then((fetched) => {
+        if (fetched.length > 0) {
+          setWeightEntries(fetched);
+          localStorage.setItem(userWeightKey, JSON.stringify(fetched));
+        }
+      });
+
+      // 3. Real-time Firestore Subscriptions
       const unsubDays = subscribeWorkoutDays(
         currentUser.uid,
         (fetchedDays) => {
           setDays(fetchedDays);
+          localStorage.setItem(userDaysKey, JSON.stringify(fetchedDays));
           setDataLoading(false);
         },
         (err) => {
-          console.warn('Days subscription warning:', err);
+          console.warn('Days subscription notice:', err);
           setDataLoading(false);
         }
       );
@@ -65,16 +138,18 @@ function MainAppContent() {
         currentUser.uid,
         (fetchedSessions) => {
           setSessions(fetchedSessions);
+          localStorage.setItem(userSessionsKey, JSON.stringify(fetchedSessions));
         },
-        (err) => console.warn('Sessions subscription warning:', err)
+        (err) => console.warn('Sessions subscription notice:', err)
       );
 
       const unsubWeight = subscribeWeightEntries(
         currentUser.uid,
         (fetchedWeights) => {
           setWeightEntries(fetchedWeights);
+          localStorage.setItem(userWeightKey, JSON.stringify(fetchedWeights));
         },
-        (err) => console.warn('Weight subscription warning:', err)
+        (err) => console.warn('Weight subscription notice:', err)
       );
 
       return () => {
@@ -99,16 +174,19 @@ function MainAppContent() {
     }
   }, [currentUser, authLoading]);
 
-  // Persist local copy when not logged in
+  // Persist cache locally for offline/instant resume
   useEffect(() => {
-    if (!currentUser && !authLoading) {
-      try {
-        localStorage.setItem(LOCAL_STORAGE_DAYS_KEY, JSON.stringify(days));
-        localStorage.setItem(LOCAL_STORAGE_SESSIONS_KEY, JSON.stringify(sessions));
-        localStorage.setItem(LOCAL_STORAGE_WEIGHT_KEY, JSON.stringify(weightEntries));
-      } catch (e) {
-        // ignore
-      }
+    if (authLoading) return;
+    const daysKey = currentUser ? `lms_user_${currentUser.uid}_days` : LOCAL_STORAGE_DAYS_KEY;
+    const sessionsKey = currentUser ? `lms_user_${currentUser.uid}_sessions` : LOCAL_STORAGE_SESSIONS_KEY;
+    const weightKey = currentUser ? `lms_user_${currentUser.uid}_weights` : LOCAL_STORAGE_WEIGHT_KEY;
+
+    try {
+      if (days.length > 0) localStorage.setItem(daysKey, JSON.stringify(days));
+      if (sessions.length > 0) localStorage.setItem(sessionsKey, JSON.stringify(sessions));
+      if (weightEntries.length > 0) localStorage.setItem(weightKey, JSON.stringify(weightEntries));
+    } catch (e) {
+      // ignore
     }
   }, [currentUser, authLoading, days, sessions, weightEntries]);
 
@@ -261,6 +339,9 @@ function MainAppContent() {
       <BottomNav
         activeTab={activeTab}
         onSelectTab={(tab) => {
+          if (tab !== 'registro') {
+            setPreselectedDayId(null);
+          }
           setActiveTab(tab);
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}

@@ -1,14 +1,23 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { initializeFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  doc,
+  getDocFromServer,
+} from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 
-// CRITICAL: Explicit firestoreDatabaseId must be provided with ignoreUndefinedProperties
+// CRITICAL: Explicit firestoreDatabaseId must be provided with ignoreUndefinedProperties and multi-tab persistent cache
 export const db = initializeFirestore(
   app,
   {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager(),
+    }),
     ignoreUndefinedProperties: true,
   },
   firebaseConfig.firestoreDatabaseId
@@ -73,8 +82,12 @@ export async function testFirestoreConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn('Firebase connection check: client appears offline or connecting.');
+    // Handle offline state or token initialization gracefully
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes('offline') || msg.includes('token') || msg.includes('Could not reach')) {
+      console.info('Firestore: Offline/cached mode active until live backend connection establishes.');
+    } else {
+      console.warn('Firestore connection check notice:', msg);
     }
   }
 }

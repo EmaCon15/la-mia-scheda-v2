@@ -27,24 +27,41 @@ export function subscribeWorkoutDays(
 ) {
   const path = `users/${userId}/days`;
   try {
-    const q = query(collection(db, path), orderBy('order', 'asc'));
+    const colRef = collection(db, path);
     return onSnapshot(
-      q,
+      colRef,
       (snapshot) => {
         const days: WorkoutDay[] = [];
         snapshot.forEach((docSnap) => {
           days.push(docSnap.data() as WorkoutDay);
         });
+        days.sort((a, b) => (a.order || 0) - (b.order || 0));
         onUpdate(days);
       },
       (error) => {
+        console.warn('subscribeWorkoutDays snapshot warning:', error);
         if (onError) onError(error);
-        handleFirestoreError(error, OperationType.GET, path);
       }
     );
   } catch (err) {
+    console.warn('subscribeWorkoutDays setup warning:', err);
     if (onError) onError(err);
-    handleFirestoreError(err, OperationType.GET, path);
+  }
+}
+
+export async function fetchWorkoutDaysOnce(userId: string): Promise<WorkoutDay[]> {
+  const path = `users/${userId}/days`;
+  try {
+    const snapshot = await getDocs(collection(db, path));
+    const days: WorkoutDay[] = [];
+    snapshot.forEach((docSnap) => {
+      days.push(docSnap.data() as WorkoutDay);
+    });
+    days.sort((a, b) => (a.order || 0) - (b.order || 0));
+    return days;
+  } catch (err) {
+    console.warn('fetchWorkoutDaysOnce error:', err);
+    return [];
   }
 }
 
@@ -85,24 +102,41 @@ export function subscribeWorkoutSessions(
 ) {
   const path = `users/${userId}/sessions`;
   try {
-    const q = query(collection(db, path), orderBy('date', 'desc'));
+    const colRef = collection(db, path);
     return onSnapshot(
-      q,
+      colRef,
       (snapshot) => {
         const sessions: WorkoutSession[] = [];
         snapshot.forEach((docSnap) => {
           sessions.push(docSnap.data() as WorkoutSession);
         });
+        sessions.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
         onUpdate(sessions);
       },
       (error) => {
+        console.warn('subscribeWorkoutSessions snapshot warning:', error);
         if (onError) onError(error);
-        handleFirestoreError(error, OperationType.GET, path);
       }
     );
   } catch (err) {
+    console.warn('subscribeWorkoutSessions setup warning:', err);
     if (onError) onError(err);
-    handleFirestoreError(err, OperationType.GET, path);
+  }
+}
+
+export async function fetchWorkoutSessionsOnce(userId: string): Promise<WorkoutSession[]> {
+  const path = `users/${userId}/sessions`;
+  try {
+    const snapshot = await getDocs(collection(db, path));
+    const sessions: WorkoutSession[] = [];
+    snapshot.forEach((docSnap) => {
+      sessions.push(docSnap.data() as WorkoutSession);
+    });
+    sessions.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    return sessions;
+  } catch (err) {
+    console.warn('fetchWorkoutSessionsOnce error:', err);
+    return [];
   }
 }
 
@@ -145,24 +179,41 @@ export function subscribeWeightEntries(
 ) {
   const path = `users/${userId}/weight_entries`;
   try {
-    const q = query(collection(db, path), orderBy('date', 'asc'));
+    const colRef = collection(db, path);
     return onSnapshot(
-      q,
+      colRef,
       (snapshot) => {
         const entries: WeightEntry[] = [];
         snapshot.forEach((docSnap) => {
           entries.push(docSnap.data() as WeightEntry);
         });
+        entries.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
         onUpdate(entries);
       },
       (error) => {
+        console.warn('subscribeWeightEntries snapshot warning:', error);
         if (onError) onError(error);
-        handleFirestoreError(error, OperationType.GET, path);
       }
     );
   } catch (err) {
+    console.warn('subscribeWeightEntries setup warning:', err);
     if (onError) onError(err);
-    handleFirestoreError(err, OperationType.GET, path);
+  }
+}
+
+export async function fetchWeightEntriesOnce(userId: string): Promise<WeightEntry[]> {
+  const path = `users/${userId}/weight_entries`;
+  try {
+    const snapshot = await getDocs(collection(db, path));
+    const entries: WeightEntry[] = [];
+    snapshot.forEach((docSnap) => {
+      entries.push(docSnap.data() as WeightEntry);
+    });
+    entries.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    return entries;
+  } catch (err) {
+    console.warn('fetchWeightEntriesOnce error:', err);
+    return [];
   }
 }
 
