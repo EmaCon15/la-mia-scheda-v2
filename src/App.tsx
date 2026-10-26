@@ -33,90 +33,132 @@ const LOCAL_STORAGE_DAYS_KEY = 'lms_local_days';
 const LOCAL_STORAGE_SESSIONS_KEY = 'lms_local_sessions';
 const LOCAL_STORAGE_WEIGHT_KEY = 'lms_local_weight';
 
+function loadStoredArray<T>(primaryKey: string, fallbackKey: string): T[] {
+  try {
+    const rawPrimary = localStorage.getItem(primaryKey);
+    if (rawPrimary) {
+      const parsed = JSON.parse(rawPrimary);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+    const rawFallback = localStorage.getItem(fallbackKey);
+    if (rawFallback) {
+      const parsed = JSON.parse(rawFallback);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+    // Scan all keys as extra safety net
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.endsWith(primaryKey.substring(primaryKey.lastIndexOf('_')))) {
+        const val = localStorage.getItem(k);
+        if (val) {
+          const parsed = JSON.parse(val);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return [];
+}
+
 function MainAppContent() {
   const { currentUser, loading: authLoading, signInWithGoogle } = useAuth();
 
   const [activeTab, setActiveTab] = useState<TabType>('scheda');
   const [preselectedDayId, setPreselectedDayId] = useState<string | null>(null);
 
-  // Data states
-  const [days, setDays] = useState<WorkoutDay[]>([]);
-  const [sessions, setSessions] = useState<WorkoutSession[]>([]);
-  const [weightEntries, setWeightEntries] = useState<WeightEntry[]>([]);
-  const [dataLoading, setDataLoading] = useState(true);
+  // Synchronous instant retrieval from localStorage on startup - eliminating empty flashes or lost state
+  const [days, setDays] = useState<WorkoutDay[]>(() =>
+    loadStoredArray<WorkoutDay>(
+      currentUser ? `lms_user_${currentUser.uid}_days` : LOCAL_STORAGE_DAYS_KEY,
+      LOCAL_STORAGE_DAYS_KEY
+    )
+  );
+  const [sessions, setSessions] = useState<WorkoutSession[]>(() =>
+    loadStoredArray<WorkoutSession>(
+      currentUser ? `lms_user_${currentUser.uid}_sessions` : LOCAL_STORAGE_SESSIONS_KEY,
+      LOCAL_STORAGE_SESSIONS_KEY
+    )
+  );
+  const [weightEntries, setWeightEntries] = useState<WeightEntry[]>(() =>
+    loadStoredArray<WeightEntry>(
+      currentUser ? `lms_user_${currentUser.uid}_weights` : LOCAL_STORAGE_WEIGHT_KEY,
+      LOCAL_STORAGE_WEIGHT_KEY
+    )
+  );
+  const [dataLoading, setDataLoading] = useState(false);
 
-  // Subscribe to Firestore when user is authenticated, or load from localStorage with instant cached startup
+  // Synchronize with Firestore when user is authenticated
   useEffect(() => {
     if (authLoading) return;
 
     if (currentUser) {
-      // 1. Instant recovery from user-specific cache (eliminates empty screen on reload)
       const userDaysKey = `lms_user_${currentUser.uid}_days`;
       const userSessionsKey = `lms_user_${currentUser.uid}_sessions`;
       const userWeightKey = `lms_user_${currentUser.uid}_weights`;
 
-      try {
-        const cachedDays = localStorage.getItem(userDaysKey);
-        const cachedSessions = localStorage.getItem(userSessionsKey);
-        const cachedWeights = localStorage.getItem(userWeightKey);
-
-        if (cachedDays) {
-          const parsed = JSON.parse(cachedDays);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setDays(parsed);
-            setDataLoading(false);
-          }
-        }
-        if (cachedSessions) {
-          const parsed = JSON.parse(cachedSessions);
-          if (Array.isArray(parsed)) setSessions(parsed);
-        }
-        if (cachedWeights) {
-          const parsed = JSON.parse(cachedWeights);
-          if (Array.isArray(parsed)) setWeightEntries(parsed);
-        }
-      } catch (e) {
-        console.warn('Cache recovery error:', e);
+      // 1. Recover from user-specific cache or fallback
+      const cachedDays = loadStoredArray<WorkoutDay>(userDaysKey, LOCAL_STORAGE_DAYS_KEY);
+      if (cachedDays.length > 0 && days.length === 0) {
+        setDays(cachedDays);
+      }
+      const cachedSessions = loadStoredArray<WorkoutSession>(userSessionsKey, LOCAL_STORAGE_SESSIONS_KEY);
+      if (cachedSessions.length > 0 && sessions.length === 0) {
+        setSessions(cachedSessions);
+      }
+      const cachedWeights = loadStoredArray<WeightEntry>(userWeightKey, LOCAL_STORAGE_WEIGHT_KEY);
+      if (cachedWeights.length > 0 && weightEntries.length === 0) {
+        setWeightEntries(cachedWeights);
       }
 
-      // 2. Direct fetch as immediate fallback
+      // 2. Direct fetch fallback
       fetchWorkoutDaysOnce(currentUser.uid).then(async (fetched) => {
         if (fetched.length > 0) {
           setDays(fetched);
           localStorage.setItem(userDaysKey, JSON.stringify(fetched));
-          setDataLoading(false);
+          localStorage.setItem(LOCAL_STORAGE_DAYS_KEY, JSON.stringify(fetched));
         } else {
-          // If Cloud has 0 days, check if user had local guest days to auto-sync
-          try {
-            const guestDays = localStorage.getItem(LOCAL_STORAGE_DAYS_KEY);
-            if (guestDays) {
-              const parsedGuest: WorkoutDay[] = JSON.parse(guestDays);
-              if (parsedGuest.length > 0) {
-                for (const gDay of parsedGuest) {
-                  await saveWorkoutDay(currentUser.uid, gDay);
-                }
-                setDays(parsedGuest);
-                localStorage.setItem(userDaysKey, guestDays);
-              }
+          // If cloud has 0 days, check if local storage has days to upload to account
+          const existingToUpload = loadStoredArray<WorkoutDay>(userDaysKey, LOCAL_STORAGE_DAYS_KEY);
+          if (existingToUpload.length > 0) {
+            setDays(existingToUpload);
+            for (const d of existingToUpload) {
+              await saveWorkoutDay(currentUser.uid, d);
             }
-          } catch (syncErr) {
-            console.warn('Guest data migration notice:', syncErr);
           }
-          setDataLoading(false);
         }
       });
 
-      fetchWorkoutSessionsOnce(currentUser.uid).then((fetched) => {
+      fetchWorkoutSessionsOnce(currentUser.uid).then(async (fetched) => {
         if (fetched.length > 0) {
           setSessions(fetched);
           localStorage.setItem(userSessionsKey, JSON.stringify(fetched));
+          localStorage.setItem(LOCAL_STORAGE_SESSIONS_KEY, JSON.stringify(fetched));
+        } else {
+          const existingToUpload = loadStoredArray<WorkoutSession>(userSessionsKey, LOCAL_STORAGE_SESSIONS_KEY);
+          if (existingToUpload.length > 0) {
+            setSessions(existingToUpload);
+            for (const s of existingToUpload) {
+              await saveWorkoutSession(currentUser.uid, s);
+            }
+          }
         }
       });
 
-      fetchWeightEntriesOnce(currentUser.uid).then((fetched) => {
+      fetchWeightEntriesOnce(currentUser.uid).then(async (fetched) => {
         if (fetched.length > 0) {
           setWeightEntries(fetched);
           localStorage.setItem(userWeightKey, JSON.stringify(fetched));
+          localStorage.setItem(LOCAL_STORAGE_WEIGHT_KEY, JSON.stringify(fetched));
+        } else {
+          const existingToUpload = loadStoredArray<WeightEntry>(userWeightKey, LOCAL_STORAGE_WEIGHT_KEY);
+          if (existingToUpload.length > 0) {
+            setWeightEntries(existingToUpload);
+            for (const w of existingToUpload) {
+              await saveWeightEntry(currentUser.uid, w);
+            }
+          }
         }
       });
 
@@ -124,32 +166,63 @@ function MainAppContent() {
       const unsubDays = subscribeWorkoutDays(
         currentUser.uid,
         (fetchedDays) => {
-          setDays(fetchedDays);
-          localStorage.setItem(userDaysKey, JSON.stringify(fetchedDays));
-          setDataLoading(false);
+          if (fetchedDays.length > 0) {
+            setDays(fetchedDays);
+            localStorage.setItem(userDaysKey, JSON.stringify(fetchedDays));
+            localStorage.setItem(LOCAL_STORAGE_DAYS_KEY, JSON.stringify(fetchedDays));
+          } else {
+            // Never wipe out local routine with an empty snapshot
+            setDays((prev) => {
+              if (prev.length > 0) {
+                // Upload existing days to cloud
+                prev.forEach((d) => saveWorkoutDay(currentUser.uid, d));
+                return prev;
+              }
+              return prev;
+            });
+          }
         },
-        (err) => {
-          console.warn('Days subscription notice:', err);
-          setDataLoading(false);
-        }
+        (err) => console.info('Days sync notice:', err)
       );
 
       const unsubSessions = subscribeWorkoutSessions(
         currentUser.uid,
         (fetchedSessions) => {
-          setSessions(fetchedSessions);
-          localStorage.setItem(userSessionsKey, JSON.stringify(fetchedSessions));
+          if (fetchedSessions.length > 0) {
+            setSessions(fetchedSessions);
+            localStorage.setItem(userSessionsKey, JSON.stringify(fetchedSessions));
+            localStorage.setItem(LOCAL_STORAGE_SESSIONS_KEY, JSON.stringify(fetchedSessions));
+          } else {
+            setSessions((prev) => {
+              if (prev.length > 0) {
+                prev.forEach((s) => saveWorkoutSession(currentUser.uid, s));
+                return prev;
+              }
+              return prev;
+            });
+          }
         },
-        (err) => console.warn('Sessions subscription notice:', err)
+        (err) => console.info('Sessions sync notice:', err)
       );
 
       const unsubWeight = subscribeWeightEntries(
         currentUser.uid,
         (fetchedWeights) => {
-          setWeightEntries(fetchedWeights);
-          localStorage.setItem(userWeightKey, JSON.stringify(fetchedWeights));
+          if (fetchedWeights.length > 0) {
+            setWeightEntries(fetchedWeights);
+            localStorage.setItem(userWeightKey, JSON.stringify(fetchedWeights));
+            localStorage.setItem(LOCAL_STORAGE_WEIGHT_KEY, JSON.stringify(fetchedWeights));
+          } else {
+            setWeightEntries((prev) => {
+              if (prev.length > 0) {
+                prev.forEach((w) => saveWeightEntry(currentUser.uid, w));
+                return prev;
+              }
+              return prev;
+            });
+          }
         },
-        (err) => console.warn('Weight subscription notice:', err)
+        (err) => console.info('Weight sync notice:', err)
       );
 
       return () => {
@@ -159,36 +232,40 @@ function MainAppContent() {
       };
     } else {
       // Local fallback for guest / offline mode
-      try {
-        const savedDays = localStorage.getItem(LOCAL_STORAGE_DAYS_KEY);
-        const savedSessions = localStorage.getItem(LOCAL_STORAGE_SESSIONS_KEY);
-        const savedWeights = localStorage.getItem(LOCAL_STORAGE_WEIGHT_KEY);
+      const localDays = loadStoredArray<WorkoutDay>(LOCAL_STORAGE_DAYS_KEY, LOCAL_STORAGE_DAYS_KEY);
+      if (localDays.length > 0 && days.length === 0) setDays(localDays);
 
-        if (savedDays) setDays(JSON.parse(savedDays));
-        if (savedSessions) setSessions(JSON.parse(savedSessions));
-        if (savedWeights) setWeightEntries(JSON.parse(savedWeights));
-      } catch (e) {
-        console.error('Local storage read error:', e);
-      }
-      setDataLoading(false);
+      const localSessions = loadStoredArray<WorkoutSession>(LOCAL_STORAGE_SESSIONS_KEY, LOCAL_STORAGE_SESSIONS_KEY);
+      if (localSessions.length > 0 && sessions.length === 0) setSessions(localSessions);
+
+      const localWeights = loadStoredArray<WeightEntry>(LOCAL_STORAGE_WEIGHT_KEY, LOCAL_STORAGE_WEIGHT_KEY);
+      if (localWeights.length > 0 && weightEntries.length === 0) setWeightEntries(localWeights);
     }
   }, [currentUser, authLoading]);
 
-  // Persist cache locally for offline/instant resume
+  // Sync cache locally whenever data changes
   useEffect(() => {
-    if (authLoading) return;
     const daysKey = currentUser ? `lms_user_${currentUser.uid}_days` : LOCAL_STORAGE_DAYS_KEY;
     const sessionsKey = currentUser ? `lms_user_${currentUser.uid}_sessions` : LOCAL_STORAGE_SESSIONS_KEY;
     const weightKey = currentUser ? `lms_user_${currentUser.uid}_weights` : LOCAL_STORAGE_WEIGHT_KEY;
 
     try {
-      if (days.length > 0) localStorage.setItem(daysKey, JSON.stringify(days));
-      if (sessions.length > 0) localStorage.setItem(sessionsKey, JSON.stringify(sessions));
-      if (weightEntries.length > 0) localStorage.setItem(weightKey, JSON.stringify(weightEntries));
-    } catch (e) {
+      if (days.length > 0) {
+        localStorage.setItem(daysKey, JSON.stringify(days));
+        localStorage.setItem(LOCAL_STORAGE_DAYS_KEY, JSON.stringify(days));
+      }
+      if (sessions.length > 0) {
+        localStorage.setItem(sessionsKey, JSON.stringify(sessions));
+        localStorage.setItem(LOCAL_STORAGE_SESSIONS_KEY, JSON.stringify(sessions));
+      }
+      if (weightEntries.length > 0) {
+        localStorage.setItem(weightKey, JSON.stringify(weightEntries));
+        localStorage.setItem(LOCAL_STORAGE_WEIGHT_KEY, JSON.stringify(weightEntries));
+      }
+    } catch {
       // ignore
     }
-  }, [currentUser, authLoading, days, sessions, weightEntries]);
+  }, [currentUser, days, sessions, weightEntries]);
 
   // Save / Delete Day
   const handleSaveDay = async (day: WorkoutDay) => {
@@ -208,7 +285,11 @@ function MainAppContent() {
   };
 
   const handleDeleteDay = async (dayId: string) => {
-    setDays((prev) => prev.filter((d) => d.id !== dayId));
+    const updated = days.filter((d) => d.id !== dayId);
+    setDays(updated);
+    const daysKey = currentUser ? `lms_user_${currentUser.uid}_days` : LOCAL_STORAGE_DAYS_KEY;
+    localStorage.setItem(daysKey, JSON.stringify(updated));
+    localStorage.setItem(LOCAL_STORAGE_DAYS_KEY, JSON.stringify(updated));
     if (currentUser) {
       await deleteWorkoutDay(currentUser.uid, dayId);
     }
@@ -229,7 +310,11 @@ function MainAppContent() {
   };
 
   const handleDeleteSession = async (sessionId: string) => {
-    setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    const updated = sessions.filter((s) => s.id !== sessionId);
+    setSessions(updated);
+    const sessionsKey = currentUser ? `lms_user_${currentUser.uid}_sessions` : LOCAL_STORAGE_SESSIONS_KEY;
+    localStorage.setItem(sessionsKey, JSON.stringify(updated));
+    localStorage.setItem(LOCAL_STORAGE_SESSIONS_KEY, JSON.stringify(updated));
     if (currentUser) {
       await deleteWorkoutSession(currentUser.uid, sessionId);
     }
@@ -252,7 +337,11 @@ function MainAppContent() {
   };
 
   const handleDeleteWeight = async (entryId: string) => {
-    setWeightEntries((prev) => prev.filter((w) => w.id !== entryId));
+    const updated = weightEntries.filter((w) => w.id !== entryId);
+    setWeightEntries(updated);
+    const weightKey = currentUser ? `lms_user_${currentUser.uid}_weights` : LOCAL_STORAGE_WEIGHT_KEY;
+    localStorage.setItem(weightKey, JSON.stringify(updated));
+    localStorage.setItem(LOCAL_STORAGE_WEIGHT_KEY, JSON.stringify(updated));
     if (currentUser) {
       await deleteWeightEntry(currentUser.uid, entryId);
     }

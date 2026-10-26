@@ -82,13 +82,8 @@ export async function testFirestoreConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
-    // Handle offline state or token initialization gracefully
     const msg = error instanceof Error ? error.message : String(error);
-    if (msg.includes('offline') || msg.includes('token') || msg.includes('Could not reach')) {
-      console.info('Firestore: Offline/cached mode active until live backend connection establishes.');
-    } else {
-      console.warn('Firestore connection check notice:', msg);
-    }
+    console.info('Firestore connection status:', msg.includes('offline') ? 'offline' : 'checked');
   }
 }
 

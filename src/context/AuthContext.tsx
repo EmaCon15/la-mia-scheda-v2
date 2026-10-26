@@ -21,27 +21,19 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<User | null>(() => auth.currentUser);
+  const [loading, setLoading] = useState(() => !auth.currentUser);
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Explicitly enforce local persistence across browser tab close/reopen
-    setPersistence(auth, browserLocalPersistence).catch((err) => {
-      console.warn('Firebase persistence setting notice:', err);
-    });
-
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          // Guarantee a valid, refreshed token is ready before informing consumers
-          await user.getIdToken();
-        } catch (tokenErr) {
-          console.warn('Token validation on startup:', tokenErr);
-        }
-      }
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
       setLoading(false);
+      if (user) {
+        user.getIdToken().catch((tokenErr) => {
+          console.info('Token refresh notice:', tokenErr?.message || tokenErr);
+        });
+      }
     });
 
     return () => unsubscribe();
