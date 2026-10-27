@@ -15,11 +15,11 @@ import {
   Download,
   Upload,
   Sparkles,
-  ShieldCheck,
   CheckCircle2,
   AlertTriangle,
   Cloud,
 } from 'lucide-react';
+import { PWAInstallButton } from '../pwa/PWAInstallButton';
 
 interface SettingsViewProps {
   days: WorkoutDay[];
@@ -130,6 +130,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </p>
       </div>
 
+      {/* PWA Installation Card */}
+      <PWAInstallButton variant="card" />
+
       {/* Account Section */}
       <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 border border-zinc-200 dark:border-zinc-800 shadow-xs space-y-3">
         <h3 className="font-bold text-sm text-zinc-900 dark:text-zinc-100 flex items-center space-x-2">
@@ -162,7 +165,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </span>
                 <span className="inline-flex items-center space-x-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">
                   <Cloud className="w-3 h-3" />
-                  <span>Sincronizzazione automatica attiva</span>
+                  <span>Sincronizzazione account attiva</span>
                 </span>
               </div>
             </div>

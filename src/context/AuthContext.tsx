@@ -45,8 +45,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await signInWithPopup(auth, googleProvider);
     } catch (err: unknown) {
       console.error('Google Sign-In Error:', err);
-      const message =
-        err instanceof Error ? err.message : 'Errore durante l\'accesso con Google';
+      let message = 'Errore durante l\'accesso con Google';
+      if (err && typeof err === 'object' && 'code' in err) {
+        const code = (err as { code: string }).code;
+        if (code === 'auth/popup-blocked') {
+          message = 'La finestra di accesso è stata bloccata. Consenti l\'apertura della scheda di autenticazione.';
+        } else if (code === 'auth/popup-closed-by-user') {
+          message = 'Accesso annullato.';
+        } else if (code === 'auth/network-request-failed') {
+          message = 'Connessione assente o instabile. Riprova tra poco.';
+        }
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
       setAuthError(message);
       throw err;
     }

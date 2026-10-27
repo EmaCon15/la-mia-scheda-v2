@@ -28,6 +28,7 @@ import {
 } from './services/firestoreService';
 import { getDefaultCalisthenicsTemplate } from './utils/workoutUtils';
 import { AlertCircle } from 'lucide-react';
+import { OfflineIndicator } from './components/pwa/OfflineIndicator';
 
 const LOCAL_STORAGE_DAYS_KEY = 'lms_local_days';
 const LOCAL_STORAGE_SESSIONS_KEY = 'lms_local_sessions';
@@ -89,6 +90,28 @@ function MainAppContent() {
   );
   const [dataLoading, setDataLoading] = useState(false);
 
+  // Immediately populate state from user-specific cache whenever currentUser is identified
+  useEffect(() => {
+    if (currentUser) {
+      const userDaysKey = `lms_user_${currentUser.uid}_days`;
+      const userSessionsKey = `lms_user_${currentUser.uid}_sessions`;
+      const userWeightKey = `lms_user_${currentUser.uid}_weights`;
+
+      const cachedDays = loadStoredArray<WorkoutDay>(userDaysKey, LOCAL_STORAGE_DAYS_KEY);
+      if (cachedDays.length > 0) {
+        setDays(cachedDays);
+      }
+      const cachedSessions = loadStoredArray<WorkoutSession>(userSessionsKey, LOCAL_STORAGE_SESSIONS_KEY);
+      if (cachedSessions.length > 0) {
+        setSessions(cachedSessions);
+      }
+      const cachedWeights = loadStoredArray<WeightEntry>(userWeightKey, LOCAL_STORAGE_WEIGHT_KEY);
+      if (cachedWeights.length > 0) {
+        setWeightEntries(cachedWeights);
+      }
+    }
+  }, [currentUser?.uid]);
+
   // Synchronize with Firestore when user is authenticated
   useEffect(() => {
     if (authLoading) return;
@@ -98,88 +121,98 @@ function MainAppContent() {
       const userSessionsKey = `lms_user_${currentUser.uid}_sessions`;
       const userWeightKey = `lms_user_${currentUser.uid}_weights`;
 
-      // 1. Recover from user-specific cache or fallback
-      const cachedDays = loadStoredArray<WorkoutDay>(userDaysKey, LOCAL_STORAGE_DAYS_KEY);
-      if (cachedDays.length > 0 && days.length === 0) {
-        setDays(cachedDays);
-      }
-      const cachedSessions = loadStoredArray<WorkoutSession>(userSessionsKey, LOCAL_STORAGE_SESSIONS_KEY);
-      if (cachedSessions.length > 0 && sessions.length === 0) {
-        setSessions(cachedSessions);
-      }
-      const cachedWeights = loadStoredArray<WeightEntry>(userWeightKey, LOCAL_STORAGE_WEIGHT_KEY);
-      if (cachedWeights.length > 0 && weightEntries.length === 0) {
-        setWeightEntries(cachedWeights);
-      }
-
-      // 2. Direct fetch fallback
+      // 1. Direct fetch fallback with safe error preservation
       fetchWorkoutDaysOnce(currentUser.uid).then(async (fetched) => {
         if (fetched.length > 0) {
           setDays(fetched);
-          localStorage.setItem(userDaysKey, JSON.stringify(fetched));
-          localStorage.setItem(LOCAL_STORAGE_DAYS_KEY, JSON.stringify(fetched));
+          try {
+            localStorage.setItem(userDaysKey, JSON.stringify(fetched));
+            localStorage.setItem(LOCAL_STORAGE_DAYS_KEY, JSON.stringify(fetched));
+          } catch {
+            // ignore
+          }
         } else {
-          // If cloud has 0 days, check if local storage has days to upload to account
+          // If cloud has 0 days returned, check if we have local days to upload to account
           const existingToUpload = loadStoredArray<WorkoutDay>(userDaysKey, LOCAL_STORAGE_DAYS_KEY);
           if (existingToUpload.length > 0) {
             setDays(existingToUpload);
             for (const d of existingToUpload) {
-              await saveWorkoutDay(currentUser.uid, d);
+              try {
+                await saveWorkoutDay(currentUser.uid, d);
+              } catch {
+                // If cloud write fails (e.g. offline/token pending), keep local copy safe
+              }
             }
           }
         }
+      }).catch((err) => {
+        console.info('fetchWorkoutDays notice:', err);
       });
 
       fetchWorkoutSessionsOnce(currentUser.uid).then(async (fetched) => {
         if (fetched.length > 0) {
           setSessions(fetched);
-          localStorage.setItem(userSessionsKey, JSON.stringify(fetched));
-          localStorage.setItem(LOCAL_STORAGE_SESSIONS_KEY, JSON.stringify(fetched));
+          try {
+            localStorage.setItem(userSessionsKey, JSON.stringify(fetched));
+            localStorage.setItem(LOCAL_STORAGE_SESSIONS_KEY, JSON.stringify(fetched));
+          } catch {
+            // ignore
+          }
         } else {
           const existingToUpload = loadStoredArray<WorkoutSession>(userSessionsKey, LOCAL_STORAGE_SESSIONS_KEY);
           if (existingToUpload.length > 0) {
             setSessions(existingToUpload);
             for (const s of existingToUpload) {
-              await saveWorkoutSession(currentUser.uid, s);
+              try {
+                await saveWorkoutSession(currentUser.uid, s);
+              } catch {
+                // Keep local copy safe
+              }
             }
           }
         }
+      }).catch((err) => {
+        console.info('fetchWorkoutSessions notice:', err);
       });
 
       fetchWeightEntriesOnce(currentUser.uid).then(async (fetched) => {
         if (fetched.length > 0) {
           setWeightEntries(fetched);
-          localStorage.setItem(userWeightKey, JSON.stringify(fetched));
-          localStorage.setItem(LOCAL_STORAGE_WEIGHT_KEY, JSON.stringify(fetched));
+          try {
+            localStorage.setItem(userWeightKey, JSON.stringify(fetched));
+            localStorage.setItem(LOCAL_STORAGE_WEIGHT_KEY, JSON.stringify(fetched));
+          } catch {
+            // ignore
+          }
         } else {
           const existingToUpload = loadStoredArray<WeightEntry>(userWeightKey, LOCAL_STORAGE_WEIGHT_KEY);
           if (existingToUpload.length > 0) {
             setWeightEntries(existingToUpload);
             for (const w of existingToUpload) {
-              await saveWeightEntry(currentUser.uid, w);
+              try {
+                await saveWeightEntry(currentUser.uid, w);
+              } catch {
+                // Keep local copy safe
+              }
             }
           }
         }
+      }).catch((err) => {
+        console.info('fetchWeightEntries notice:', err);
       });
 
-      // 3. Real-time Firestore Subscriptions
+      // 2. Real-time Firestore Subscriptions
       const unsubDays = subscribeWorkoutDays(
         currentUser.uid,
         (fetchedDays) => {
           if (fetchedDays.length > 0) {
             setDays(fetchedDays);
-            localStorage.setItem(userDaysKey, JSON.stringify(fetchedDays));
-            localStorage.setItem(LOCAL_STORAGE_DAYS_KEY, JSON.stringify(fetchedDays));
-          } else {
-            // Never wipe out local routine with an empty snapshot
-            setDays((prev) => {
-              if (prev.length > 0) {
-                // Upload existing days to cloud
-                prev.forEach((d) => saveWorkoutDay(currentUser.uid, d));
-                return prev;
-              }
-              return prev;
-            });
+            try {
+              localStorage.setItem(userDaysKey, JSON.stringify(fetchedDays));
+              localStorage.setItem(LOCAL_STORAGE_DAYS_KEY, JSON.stringify(fetchedDays));
+            } catch {
+              // ignore
+            }
           }
         },
         (err) => console.info('Days sync notice:', err)
@@ -190,16 +223,12 @@ function MainAppContent() {
         (fetchedSessions) => {
           if (fetchedSessions.length > 0) {
             setSessions(fetchedSessions);
-            localStorage.setItem(userSessionsKey, JSON.stringify(fetchedSessions));
-            localStorage.setItem(LOCAL_STORAGE_SESSIONS_KEY, JSON.stringify(fetchedSessions));
-          } else {
-            setSessions((prev) => {
-              if (prev.length > 0) {
-                prev.forEach((s) => saveWorkoutSession(currentUser.uid, s));
-                return prev;
-              }
-              return prev;
-            });
+            try {
+              localStorage.setItem(userSessionsKey, JSON.stringify(fetchedSessions));
+              localStorage.setItem(LOCAL_STORAGE_SESSIONS_KEY, JSON.stringify(fetchedSessions));
+            } catch {
+              // ignore
+            }
           }
         },
         (err) => console.info('Sessions sync notice:', err)
@@ -210,16 +239,12 @@ function MainAppContent() {
         (fetchedWeights) => {
           if (fetchedWeights.length > 0) {
             setWeightEntries(fetchedWeights);
-            localStorage.setItem(userWeightKey, JSON.stringify(fetchedWeights));
-            localStorage.setItem(LOCAL_STORAGE_WEIGHT_KEY, JSON.stringify(fetchedWeights));
-          } else {
-            setWeightEntries((prev) => {
-              if (prev.length > 0) {
-                prev.forEach((w) => saveWeightEntry(currentUser.uid, w));
-                return prev;
-              }
-              return prev;
-            });
+            try {
+              localStorage.setItem(userWeightKey, JSON.stringify(fetchedWeights));
+              localStorage.setItem(LOCAL_STORAGE_WEIGHT_KEY, JSON.stringify(fetchedWeights));
+            } catch {
+              // ignore
+            }
           }
         },
         (err) => console.info('Weight sync notice:', err)
@@ -360,6 +385,7 @@ function MainAppContent() {
   return (
     <div className="min-h-screen bg-zinc-100 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors flex flex-col font-sans">
       <Navbar />
+      <OfflineIndicator />
 
       {/* Guest Banner if not logged in */}
       {!currentUser && !authLoading && (

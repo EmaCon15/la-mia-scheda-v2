@@ -2,13 +2,14 @@ import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { Dumbbell, Sun, Moon, LogIn, LogOut, Cloud, CloudOff } from 'lucide-react';
+import { PWAInstallButton } from './pwa/PWAInstallButton';
 
 export const Navbar: React.FC = () => {
   const { currentUser, signInWithGoogle, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   return (
-    <header className="sticky top-0 z-30 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 transition-colors">
+    <header className="sticky top-0 z-30 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 transition-colors pt-safe">
       <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
         {/* Brand */}
         <div className="flex items-center space-x-2.5">
@@ -27,6 +28,9 @@ export const Navbar: React.FC = () => {
 
         {/* Right side actions */}
         <div className="flex items-center space-x-2">
+          {/* In-App PWA Install Action */}
+          <PWAInstallButton variant="navbar" />
+
           {/* Theme toggle */}
           <button
             onClick={toggleTheme}

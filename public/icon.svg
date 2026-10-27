@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+    <defs>
+      <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#f59e0b" />
+        <stop offset="50%" stop-color="#10b981" />
+        <stop offset="100%" stop-color="#059669" />
+      </linearGradient>
+      <linearGradient id="darkBg" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#18181b" />
+        <stop offset="100%" stop-color="#09090b" />
+      </linearGradient>
+    </defs>
+
+    
+    <!-- Any / Standard icon with modern squircle -->
+    <rect width="512" height="512" rx="113" fill="url(#bgGrad)" />
+    
+
+    <!-- Dumbbell Icon centered -->
+    <g transform="translate(256, 256) rotate(-45)">
+      <!-- Central Bar -->
+      <rect x="-133.12" y="-23.04" width="266.24" height="46.08" rx="12.8" fill="#ffffff" />
+      
+      <!-- Left Inner Plate -->
+      <rect x="-107.52" y="-71.68" width="33.28" height="143.36" rx="12.8" fill="#ffffff" opacity="0.95" />
+      <!-- Left Outer Plate -->
+      <rect x="-148.48" y="-102.4" width="33.28" height="204.8" rx="12.8" fill="#ffffff" />
+      
+      <!-- Right Inner Plate -->
+      <rect x="74.24" y="-71.68" width="33.28" height="143.36" rx="12.8" fill="#ffffff" opacity="0.95" />
+      <!-- Right Outer Plate -->
+      <rect x="115.2" y="-102.4" width="33.28" height="204.8" rx="12.8" fill="#ffffff" />
+    </g>
+  </svg>
