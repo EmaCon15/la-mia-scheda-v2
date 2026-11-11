@@ -83,13 +83,20 @@ test('generatePTSummary outputs properly formatted Italian text', () => {
   };
 
   const summary = generatePTSummary(mockSession);
-  assert.ok(summary.includes('REPORT ALLENAMENTO CALISTHENICS'));
+  assert.ok(summary.includes('**REPORT ALLENAMENTO CALISTHENICS**'));
+  assert.ok(summary.includes('**Data:**'));
+  assert.ok(summary.includes('**Giorno:**'));
+  assert.ok(summary.includes('**Durata:**'));
+  assert.ok(summary.includes('**SEZIONE ABS**'));
+  assert.ok(summary.includes('**Hollow Body Hold**'));
+  assert.ok(summary.includes('**SEZIONE WORKOUT**'));
+  assert.ok(summary.includes('**Dip alle parallele**'));
+  assert.ok(summary.includes('**NOTE GENERALI:**'));
   assert.ok(summary.includes('Giorno A - Spinta'));
   assert.ok(summary.includes('01:00:00'));
-  assert.ok(summary.includes('Hollow Body Hold'));
-  assert.ok(summary.includes('Dip alle parallele'));
   assert.ok(summary.includes('+10kg'));
   assert.ok(summary.includes('Ottime sensazioni alle parallele'));
+  assert.ok(!summary.includes('Generato con'));
 });
 
 test('reorderItems moves elements without mutating input', () => {

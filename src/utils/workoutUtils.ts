@@ -74,23 +74,23 @@ export function calculateWeightDelta(entries: WeightEntry[]): WeightEntryWithDel
 export function generatePTSummary(session: WorkoutSession): string {
   const dateFormatted = session.date || new Date().toISOString().split('T')[0];
 
-  let summary = `🏋️‍♂️ *REPORT ALLENAMENTO CALISTHENICS*\n`;
-  summary += `📅 *Data:* ${dateFormatted}\n`;
-  summary += `📌 *Giorno:* ${session.dayName}\n`;
+  let summary = `🏋️‍♂️ **REPORT ALLENAMENTO CALISTHENICS**\n`;
+  summary += `📅 **Data:** ${dateFormatted}\n`;
+  summary += `📌 **Giorno:** ${session.dayName}\n`;
   if (session.durationMinutes) {
-    summary += `⏱️ *Durata stimata:* ${session.durationMinutes} min\n`;
+    summary += `⏱️ **Durata stimata:** ${session.durationMinutes} min\n`;
   } else if (session.durationSeconds && session.durationSeconds > 0) {
-    summary += `⏱️ *Durata:* ${formatTime(session.durationSeconds)}\n`;
+    summary += `⏱️ **Durata:** ${formatTime(session.durationSeconds)}\n`;
   }
 
   const absItems = session.completedItems.filter((i) => i.section === 'abs');
   const workoutItems = session.completedItems.filter((i) => i.section === 'workout');
 
   if (absItems.length > 0) {
-    summary += `\n🔥 *SEZIONE ABS*\n`;
+    summary += `\n🔥 **SEZIONE ABS**\n`;
     for (const item of absItems) {
       const prefix = item.circuitName ? `[${item.circuitName}] ` : '';
-      summary += `• *${prefix}${item.name}*\n`;
+      summary += `• **${prefix}${item.name}**\n`;
       for (const set of item.sets) {
         if (!set.completed) continue;
         const weightText = set.weightKg ? ` (+${set.weightKg}kg)` : '';
@@ -104,10 +104,10 @@ export function generatePTSummary(session: WorkoutSession): string {
   }
 
   if (workoutItems.length > 0) {
-    summary += `\n💪 *SEZIONE WORKOUT*\n`;
+    summary += `\n💪 **SEZIONE WORKOUT**\n`;
     for (const item of workoutItems) {
       const prefix = item.circuitName ? `[${item.circuitName}] ` : '';
-      summary += `• *${prefix}${item.name}*\n`;
+      summary += `• **${prefix}${item.name}**\n`;
       for (const set of item.sets) {
         if (!set.completed) continue;
         const weightText = set.weightKg ? ` (+${set.weightKg}kg)` : '';
@@ -121,10 +121,8 @@ export function generatePTSummary(session: WorkoutSession): string {
   }
 
   if (session.notes && session.notes.trim()) {
-    summary += `\n📝 *NOTE GENERALI:*\n${session.notes.trim()}\n`;
+    summary += `\n📝 **NOTE GENERALI:**\n${session.notes.trim()}\n`;
   }
-
-  summary += `\n_Generato con La mia scheda - Calisthenics App_`;
 
   return summary;
 }

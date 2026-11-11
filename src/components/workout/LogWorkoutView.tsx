@@ -276,10 +276,10 @@ export const LogWorkoutView: React.FC<LogWorkoutViewProps> = ({
     }
   };
 
-  const handleCopyPTSummary = (textToCopy: string, isHistory = false) => {
+  const handleCopyPTSummary = (textToCopy: string, isHistory = false, historyIdentifier?: string) => {
     navigator.clipboard.writeText(textToCopy);
     if (isHistory) {
-      setHistoryCopiedId(textToCopy);
+      setHistoryCopiedId(historyIdentifier || textToCopy);
       setTimeout(() => setHistoryCopiedId(null), 2500);
     } else {
       setCopiedToast(true);
@@ -592,9 +592,8 @@ export const LogWorkoutView: React.FC<LogWorkoutViewProps> = ({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (session.ptSummary) {
-                          handleCopyPTSummary(session.ptSummary, true);
-                        }
+                        const summary = session.ptSummary || generatePTSummary(session);
+                        handleCopyPTSummary(summary, true, session.id);
                       }}
                       title="Copia riepilogo per il Trainer"
                       className="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400 text-zinc-600 dark:text-zinc-300 transition cursor-pointer"
@@ -622,7 +621,7 @@ export const LogWorkoutView: React.FC<LogWorkoutViewProps> = ({
                 {isExpanded && (
                   <div className="px-4 pb-4 pt-1 border-t border-zinc-100 dark:border-zinc-800 space-y-3 animate-in fade-in duration-150">
                     {/* Copy toast */}
-                    {historyCopiedId === session.ptSummary && (
+                    {(historyCopiedId === session.id || historyCopiedId === session.ptSummary) && (
                       <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold text-center">
                         ✓ Report copiato negli appunti! Incollalo su WhatsApp per il tuo trainer.
                       </div>
@@ -741,28 +740,31 @@ export const LogWorkoutView: React.FC<LogWorkoutViewProps> = ({
                       </button>
 
                       <div className="flex items-center space-x-2">
-                        {session.ptSummary && (
-                          <>
-                            <button
-                              onClick={() =>
-                                handleCopyPTSummary(session.ptSummary!, true)
-                              }
-                              className="px-3 py-1.5 rounded-xl bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-semibold flex items-center space-x-1.5 shadow-xs cursor-pointer"
-                            >
-                              <Copy className="w-3.5 h-3.5" />
-                              <span>Copia Report</span>
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleWhatsAppShare(session.ptSummary!)
-                              }
-                              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-xs cursor-pointer"
-                            >
-                              <Share2 className="w-3.5 h-3.5" />
-                              <span>WhatsApp</span>
-                            </button>
-                          </>
-                        )}
+                        {(() => {
+                          const summary = session.ptSummary || generatePTSummary(session);
+                          return (
+                            <>
+                              <button
+                                onClick={() =>
+                                  handleCopyPTSummary(summary, true, session.id)
+                                }
+                                className="px-3 py-1.5 rounded-xl bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-semibold flex items-center space-x-1.5 shadow-xs cursor-pointer"
+                              >
+                                <Copy className="w-3.5 h-3.5" />
+                                <span>Copia Report</span>
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleWhatsAppShare(summary)
+                                }
+                                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-xs cursor-pointer"
+                              >
+                                <Share2 className="w-3.5 h-3.5" />
+                                <span>WhatsApp</span>
+                              </button>
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
